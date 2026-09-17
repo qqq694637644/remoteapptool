@@ -154,6 +154,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="RemoteAppFunctions.vb" />
+    <Compile Include="StrictSessionDiagnostics.vb" />
     <Compile Include="RemoteAppHostOptions.Designer.vb">
       <DependentUpon>RemoteAppHostOptions.vb</DependentUpon>
     </Compile>
@@ -304,7 +305,15 @@
       <Project>{785b6808-b2fe-4c18-9d63-6dab46482374}</Project>
       <Name>RemoteAppLib</Name>
     </ProjectReference>
+    <ProjectReference Include="..\RemoteAppSessionHost\RemoteAppSessionHost.vbproj">
+      <Project>{2b09a1c6-7805-4c3a-9b7b-0ddf6f64fb54}</Project>
+      <Name>RemoteAppSessionHost</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
+  <Target Name="CopyRemoteAppSessionHost" AfterTargets="Build">
+    <Copy SourceFiles="..\RemoteAppSessionHost\bin\$(Configuration)\RemoteAppSessionHost.exe" DestinationFolder="$(OutputPath)" Condition="Exists('..\RemoteAppSessionHost\bin\$(Configuration)\RemoteAppSessionHost.exe')" />
+  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

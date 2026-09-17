@@ -3,6 +3,7 @@
 Public Class RemoteAppEditWindow
 
     Private RemoteApp As New RemoteApp
+    Private StrictPolicyWarningShown As Boolean = False
 
     Public Function EditRemoteApp(SelectedRemoteApp As RemoteApp) As RemoteApp
         HelpSystem.SetupTips(Me)
@@ -65,6 +66,7 @@ Public Class RemoteAppEditWindow
         Dim TSWA As Integer = 0
         If RemoteApp.TSWA = True Then TSWA = 1
         Me.TSWAbox.SelectedIndex = TSWA
+        Me.StrictSessionCheckBox.Checked = RemoteApp.StrictSessionEnabled
 
         Dim TheIcon = ReturnIcon(Me.IconPathText.Text, Val(Me.IconIndexText.Text), True)
         If Not TheIcon Is Nothing Then
@@ -122,25 +124,35 @@ Public Class RemoteAppEditWindow
         End If
     End Function
 
-    Private Sub SaveRemoteApp(ShortName As String, FullName As String, Path As String, VPath As String, CommandLine As String, CommandLineSetting As Integer, IconPath As String, IconIndex As Integer, ShowInTSWA As Integer)
+    Private Function SaveRemoteApp(ShortName As String, FullName As String, Path As String, VPath As String, CommandLine As String, CommandLineSetting As Integer, IconPath As String, IconIndex As Integer, ShowInTSWA As Integer) As Boolean
 
-        Dim SysApps As New SystemRemoteApps
+        Try
+            Dim SysApps As New SystemRemoteApps
 
-        If (Not RemoteApp.Name Is Nothing) And Not (Me.Text = "New RemoteApp") Then If Not RemoteApp.Name = ShortName Then SysApps.RenameApp(RemoteApp.Name, ShortName)
+            If (Not RemoteApp.Name Is Nothing) And Not (Me.Text = "New RemoteApp") Then If Not RemoteApp.Name = ShortName Then SysApps.RenameApp(RemoteApp.Name, ShortName)
 
-        RemoteApp.Name = ShortName
-        RemoteApp.FullName = FullName
-        RemoteApp.Path = Path
-        RemoteApp.VPath = VPath
-        RemoteApp.IconPath = IconPath
-        RemoteApp.IconIndex = IconIndex
-        RemoteApp.CommandLine = CommandLine
-        RemoteApp.CommandLineOption = CommandLineSetting
-        RemoteApp.TSWA = ShowInTSWA
+            RemoteApp.Name = ShortName
+            RemoteApp.FullName = FullName
+            RemoteApp.Path = Path
+            RemoteApp.VPath = VPath
+            RemoteApp.IconPath = IconPath
+            RemoteApp.IconIndex = IconIndex
+            RemoteApp.CommandLine = CommandLine
+            RemoteApp.CommandLineOption = CommandLineSetting
+            RemoteApp.TSWA = ShowInTSWA
+            RemoteApp.StrictSessionEnabled = Me.StrictSessionCheckBox.Checked
 
-        SysApps.SaveApp(RemoteApp)
+            If RemoteApp.StrictSessionEnabled AndAlso String.IsNullOrEmpty(RemoteApp.StrictSessionId) Then
+                RemoteApp.StrictSessionId = Guid.NewGuid().ToString("D")
+            End If
 
-    End Sub
+            SysApps.SaveApp(RemoteApp)
+            Return True
+        Catch ex As Exception
+            MessageBox.Show("RemoteApp could not be saved." & vbCrLf & vbCrLf & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return False
+        End Try
+    End Function
 
     Private Function DoesAppExist(AppName As String) As Boolean
         Dim AppExists = False
@@ -171,6 +183,9 @@ Public Class RemoteAppEditWindow
         ElseIf Me.PathText.Text = "" Then
             MessageBox.Show("Path must not be blank.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
             Me.ShowDialog()
+        ElseIf Me.StrictSessionCheckBox.Checked AndAlso Not IsStrictSessionExecutable(Me.PathText.Text) Then
+            MessageBox.Show("Strict App Session currently supports executable targets (.exe and .com).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
+            Me.ShowDialog()
         ElseIf Not Me.ShortNameText.Text = RemoteApp.Name And DoesAppExist(Me.ShortNameText.Text) Then
             MessageBox.Show("A RemoteApp with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
             Me.ShowDialog()
@@ -178,8 +193,7 @@ Public Class RemoteAppEditWindow
             MessageBox.Show("A RemoteApp with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
             Me.ShowDialog()
         Else
-            SaveRemoteApp(Me.ShortNameText.Text.Trim, Me.FullNameText.Text, Me.PathText.Text, Me.PathText.Text, Me.CommandLineText.Text, Me.CommandLineOptionCombo.SelectedIndex, Me.IconPathText.Text, Val(IconIndexText.Text), Me.TSWAbox.SelectedIndex)
-            Me.Close()
+            If SaveRemoteApp(Me.ShortNameText.Text.Trim, Me.FullNameText.Text, Me.PathText.Text, Me.PathText.Text, Me.CommandLineText.Text, Me.CommandLineOptionCombo.SelectedIndex, Me.IconPathText.Text, Val(IconIndexText.Text), Me.TSWAbox.SelectedIndex) Then Me.Close()
         End If
     End Sub
 
@@ -190,13 +204,34 @@ Public Class RemoteAppEditWindow
             MessageBox.Show("Full name must not be blank.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         ElseIf Me.PathText.Text = "" Then
             MessageBox.Show("Path must not be blank.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
+        ElseIf Me.StrictSessionCheckBox.Checked AndAlso Not IsStrictSessionExecutable(Me.PathText.Text) Then
+            MessageBox.Show("Strict App Session currently supports executable targets (.exe and .com).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         ElseIf Not Me.ShortNameText.Text = RemoteApp.Name And DoesAppExist(Me.ShortNameText.Text) Then
             MessageBox.Show("A RemoteApp with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         ElseIf Me.Text = "New RemoteApp" And DoesAppExist(Me.ShortNameText.Text) Then
             MessageBox.Show("A RemoteApp with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         Else
-            SaveRemoteApp(Me.ShortNameText.Text.Trim, Me.FullNameText.Text, Me.PathText.Text, Me.PathText.Text, Me.CommandLineText.Text, Me.CommandLineOptionCombo.SelectedIndex, Me.IconPathText.Text, Val(IconIndexText.Text), Me.TSWAbox.SelectedIndex)
-            Me.Close()
+            If SaveRemoteApp(Me.ShortNameText.Text.Trim, Me.FullNameText.Text, Me.PathText.Text, Me.PathText.Text, Me.CommandLineText.Text, Me.CommandLineOptionCombo.SelectedIndex, Me.IconPathText.Text, Val(IconIndexText.Text), Me.TSWAbox.SelectedIndex) Then Me.Close()
+        End If
+    End Sub
+
+    Private Function IsStrictSessionExecutable(ByVal TargetPath As String) As Boolean
+        Dim Extension As String = System.IO.Path.GetExtension(TargetPath)
+        Return String.Equals(Extension, ".exe", StringComparison.OrdinalIgnoreCase) OrElse String.Equals(Extension, ".com", StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Sub StrictSessionCheckBox_CheckedChanged(sender As Object, e As EventArgs) Handles StrictSessionCheckBox.CheckedChanged
+        If Not StrictSessionCheckBox.Checked OrElse StrictPolicyWarningShown Then Return
+
+        If StrictSessionDiagnostics.IsSingleSessionPerUserEnabled() Then
+            StrictPolicyWarningShown = True
+            MessageBox.Show(
+                "This host is configured to restrict a user to a single Remote Desktop Services session." & vbCrLf & vbCrLf &
+                "Strict App Session generates client connections with connection sharing disabled, but the host policy can still force launches back into an existing session. In that case the Strict launcher will fail safe and will not automatically log off a shared session." & vbCrLf & vbCrLf &
+                "Review the host's 'Restrict Remote Desktop Services users to a single Remote Desktop Services session' policy before relying on isolated Strict sessions.",
+                "Strict App Session warning",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
         End If
     End Sub
 

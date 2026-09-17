@@ -26,6 +26,8 @@ Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "RDPSign", "..\RDPSign\RDPSi
 EndProject
 Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "LockChecker", "..\LockChecker\LockChecker.vbproj", "{029C010D-728B-4B87-B54A-08B2BBF49BD7}"
 EndProject
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "RemoteAppSessionHost", "..\RemoteAppSessionHost\RemoteAppSessionHost.vbproj", "{2B09A1C6-7805-4C3A-9B7B-0DDF6F64FB54}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -60,6 +62,10 @@ Global
 		{029C010D-728B-4B87-B54A-08B2BBF49BD7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{029C010D-728B-4B87-B54A-08B2BBF49BD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{029C010D-728B-4B87-B54A-08B2BBF49BD7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B09A1C6-7805-4C3A-9B7B-0DDF6F64FB54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B09A1C6-7805-4C3A-9B7B-0DDF6F64FB54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B09A1C6-7805-4C3A-9B7B-0DDF6F64FB54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B09A1C6-7805-4C3A-9B7B-0DDF6F64FB54}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

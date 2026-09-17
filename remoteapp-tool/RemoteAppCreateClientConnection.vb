@@ -306,6 +306,9 @@ Public Class RemoteAppCreateClientConnection
         Dim FlatFileTypes = ""
         If Not FileTypeAssociations Is Nothing Then FlatFileTypes = FileTypeAssociations.GetFlatFileTypes
 
+        Dim excludedAdditionalOption As String = ""
+        If RemoteApp.StrictSessionEnabled Then excludedAdditionalOption = "disableconnectionsharing"
+
         Dim RDPfile As New RDPFileLib.RDPFile With {
             .full_address = ServerAddress,
             .alternate_full_address = AltServerAddress,
@@ -314,8 +317,10 @@ Public Class RemoteAppCreateClientConnection
             .remoteapplicationprogram = "||" & RemoteApp.Name,
             .remoteapplicationmode = 1,
             .alternate_shell = "rdpinit.exe",
-            .AdditionalOptions = ExportAdditionalOptionsRdpString()
+            .AdditionalOptions = ExportAdditionalOptionsRdpString(excludedAdditionalOption)
         }
+
+        If RemoteApp.StrictSessionEnabled Then RDPfile.disableconnectionsharing = 1
 
         If UseRDGatewayCheckBox.Checked Then
             RDPfile.gatewayhostname = Me.GatewayAddress.Text
@@ -436,12 +441,13 @@ Public Class RemoteAppCreateClientConnection
         additionalOptions = RDPOptionsWindow.EditAdditionalOptions(additionalOptions)
     End Sub
 
-    Private Function ExportAdditionalOptionsRdpString()
+    Private Function ExportAdditionalOptionsRdpString(Optional ExcludedOptionName As String = "")
         Dim selectedIndicesList As New List(Of Integer)
 
         Dim optionsString As String = ""
         Dim optionsLength = additionalOptions.GetLength(0)
         For row As Integer = 0 To optionsLength - 1
+            If ExcludedOptionName <> "" AndAlso String.Equals(additionalOptions(row, 1), ExcludedOptionName, StringComparison.OrdinalIgnoreCase) Then Continue For
             optionsString += additionalOptions(row, 1) & ":"
             optionsString += additionalOptions(row, 2) & ":"
             optionsString += additionalOptions(row, 3) & vbCrLf

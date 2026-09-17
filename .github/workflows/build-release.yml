@@ -1,0 +1,128 @@
+name: Build and Release
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (for example 6.2.0 or v6.2.0)
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build .NET Framework 4.0
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      package_name: ${{ steps.metadata.outputs.package_name }}
+      checksum_name: ${{ steps.metadata.outputs.checksum_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Resolve build metadata
+        id: metadata
+        shell: cmd
+        run: >-
+          python scripts\ci_build_release.py metadata
+          --event-name "${{ github.event_name }}"
+          --version "${{ inputs.version }}"
+          --pr-number "${{ github.event.pull_request.number }}"
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Install .NET Framework 4.0 reference assemblies
+        shell: cmd
+        run: >-
+          nuget install Microsoft.NETFramework.ReferenceAssemblies.net40
+          -Version 1.0.3
+          -OutputDirectory .packages
+          -ExcludeVersion
+          -NonInteractive
+
+      - name: Resolve .NET Framework path
+        shell: cmd
+        run: python scripts\ci_build_release.py framework-env --root .
+
+      - name: Build Release
+        shell: cmd
+        run: >-
+          msbuild "remoteapp-tool\RemoteApp Tool.sln"
+          /nologo
+          /m
+          /t:Rebuild
+          /p:Configuration=Release
+          "/p:Platform=Any CPU"
+          "/p:FrameworkPathOverride=%FRAMEWORK_PATH_OVERRIDE%"
+          /verbosity:minimal
+
+      - name: Verify and package build output
+        shell: cmd
+        run: >-
+          python scripts\ci_build_release.py package
+          --root .
+          --package-name "${{ steps.metadata.outputs.package_name }}"
+          --checksum-name "${{ steps.metadata.outputs.checksum_name }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: remoteapptool-${{ steps.metadata.outputs.version }}
+          path: |
+            dist/${{ steps.metadata.outputs.package_name }}
+            dist/${{ steps.metadata.outputs.checksum_name }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download packaged build
+        uses: actions/download-artifact@v4
+        with:
+          name: remoteapptool-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Publish GitHub Release
+        shell: cmd
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python scripts\ci_build_release.py release
+          --repository "${{ github.repository }}"
+          --version "${{ needs.build.outputs.version }}"
+          --tag "${{ needs.build.outputs.tag }}"
+          --target "${{ github.sha }}"
+          --dist dist
+          --package-name "${{ needs.build.outputs.package_name }}"
+          --checksum-name "${{ needs.build.outputs.checksum_name }}"

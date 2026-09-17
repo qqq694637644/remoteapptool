@@ -54,6 +54,7 @@ Partial Class RemoteAppEditWindow
         Me.BrowsePath = New System.Windows.Forms.Button()
         Me.GroupBox3 = New System.Windows.Forms.GroupBox()
         Me.Label1 = New System.Windows.Forms.Label()
+        Me.StrictSessionCheckBox = New System.Windows.Forms.CheckBox()
         Me.GroupBox1.SuspendLayout()
         Me.GroupBox2.SuspendLayout()
         Me.GroupBox3.SuspendLayout()
@@ -143,7 +144,7 @@ Partial Class RemoteAppEditWindow
         Me.CancelEditButton.Font = New System.Drawing.Font("Segoe UI", 9.0!)
         Me.CancelEditButton.ImageIndex = 8
         Me.CancelEditButton.ImageList = Me.SmallerIcons
-        Me.CancelEditButton.Location = New System.Drawing.Point(269, 356)
+        Me.CancelEditButton.Location = New System.Drawing.Point(269, 390)
         Me.CancelEditButton.Name = "CancelEditButton"
         Me.CancelEditButton.Size = New System.Drawing.Size(75, 29)
         Me.CancelEditButton.TabIndex = 3
@@ -173,7 +174,7 @@ Partial Class RemoteAppEditWindow
         Me.SaveButton.Font = New System.Drawing.Font("Segoe UI", 9.0!)
         Me.SaveButton.ImageIndex = 0
         Me.SaveButton.ImageList = Me.SmallerIcons
-        Me.SaveButton.Location = New System.Drawing.Point(350, 356)
+        Me.SaveButton.Location = New System.Drawing.Point(350, 390)
         Me.SaveButton.Name = "SaveButton"
         Me.SaveButton.Size = New System.Drawing.Size(67, 29)
         Me.SaveButton.TabIndex = 4
@@ -372,6 +373,7 @@ Partial Class RemoteAppEditWindow
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.GroupBox3.Controls.Add(Me.Label8)
         Me.GroupBox3.Controls.Add(Me.Label1)
+        Me.GroupBox3.Controls.Add(Me.StrictSessionCheckBox)
         Me.GroupBox3.Controls.Add(Me.Label6)
         Me.GroupBox3.Controls.Add(Me.Label10)
         Me.GroupBox3.Controls.Add(Me.FTAButton)
@@ -380,7 +382,7 @@ Partial Class RemoteAppEditWindow
         Me.GroupBox3.Controls.Add(Me.TSWAbox)
         Me.GroupBox3.Location = New System.Drawing.Point(12, 231)
         Me.GroupBox3.Name = "GroupBox3"
-        Me.GroupBox3.Size = New System.Drawing.Size(405, 119)
+        Me.GroupBox3.Size = New System.Drawing.Size(405, 153)
         Me.GroupBox3.TabIndex = 2
         Me.GroupBox3.TabStop = False
         Me.GroupBox3.Text = "Options"
@@ -395,6 +397,16 @@ Partial Class RemoteAppEditWindow
         Me.Label1.TabIndex = 6
         Me.Label1.Text = "File type associations:"
         '
+        'StrictSessionCheckBox
+        '
+        Me.StrictSessionCheckBox.AutoSize = True
+        Me.StrictSessionCheckBox.Location = New System.Drawing.Point(9, 123)
+        Me.StrictSessionCheckBox.Name = "StrictSessionCheckBox"
+        Me.StrictSessionCheckBox.Size = New System.Drawing.Size(329, 19)
+        Me.StrictSessionCheckBox.TabIndex = 8
+        Me.StrictSessionCheckBox.Text = "Strict App Session (log off session when app is closed)"
+        Me.StrictSessionCheckBox.UseVisualStyleBackColor = True
+        '
         'RemoteAppEditWindow
         '
         Me.AcceptButton = Me.SaveButton
@@ -402,7 +414,7 @@ Partial Class RemoteAppEditWindow
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.BackColor = System.Drawing.Color.White
         Me.CancelButton = Me.CancelEditButton
-        Me.ClientSize = New System.Drawing.Size(429, 391)
+        Me.ClientSize = New System.Drawing.Size(429, 425)
         Me.Controls.Add(Me.GroupBox3)
         Me.Controls.Add(Me.GroupBox2)
         Me.Controls.Add(Me.GroupBox1)
@@ -411,9 +423,9 @@ Partial Class RemoteAppEditWindow
         Me.Font = New System.Drawing.Font("Segoe UI", 9.0!)
         Me.Icon = CType(resources.GetObject("$this.Icon"), System.Drawing.Icon)
         Me.MaximizeBox = False
-        Me.MaximumSize = New System.Drawing.Size(1500, 430)
+        Me.MaximumSize = New System.Drawing.Size(1500, 464)
         Me.MinimizeBox = False
-        Me.MinimumSize = New System.Drawing.Size(445, 430)
+        Me.MinimumSize = New System.Drawing.Size(445, 464)
         Me.Name = "RemoteAppEditWindow"
         Me.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent
         Me.Text = "RemoteAppEditWindow"
@@ -456,4 +468,5 @@ Partial Class RemoteAppEditWindow
     Friend WithEvents BrowsePath As Button
     Friend WithEvents GroupBox3 As GroupBox
     Friend WithEvents Label1 As Label
+    Friend WithEvents StrictSessionCheckBox As CheckBox
 End Class

@@ -69,7 +69,7 @@ Public NotInheritable Class StrictSessionDeployment
         Try
             If Directory.Exists(appDirectory) Then Directory.Delete(appDirectory, True)
         Catch
-            ' Registry state is authoritative. A locked/stale launcher can be repaired later.
+            ' A locked/stale launcher will be overwritten on the next RemoteApp Tool startup or save.
         End Try
     End Sub
 

@@ -72,7 +72,7 @@ jobs:
           "/p:FrameworkPathOverride=%FRAMEWORK_PATH_OVERRIDE%"
           /verbosity:minimal
 
-      - name: Verify and package build output
+      - name: Package runtime EXE/DLL files
         shell: cmd
         run: >-
           python scripts\ci_build_release.py package

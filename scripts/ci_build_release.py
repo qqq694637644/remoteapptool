@@ -25,6 +25,8 @@ REQUIRED_BUILD_FILES = (
     "RDPFileLib.dll",
 )
 
+RUNTIME_SUFFIXES = {".exe", ".dll"}
+
 
 def append_github_file(env_name: str, values: dict[str, str]) -> None:
     path_text = os.environ.get(env_name)
@@ -94,14 +96,25 @@ def framework_env(args: argparse.Namespace) -> None:
     print(f"FRAMEWORK_PATH_OVERRIDE: {framework_path}")
 
 
-def zip_directory(source_directory: Path, destination: Path) -> None:
+def zip_runtime_files(source_directory: Path, destination: Path) -> list[Path]:
     if destination.exists():
         destination.unlink()
 
+    runtime_files = sorted(
+        path
+        for path in source_directory.iterdir()
+        if path.is_file() and path.suffix.lower() in RUNTIME_SUFFIXES
+    )
+    if not runtime_files:
+        raise FileNotFoundError(
+            f"No runtime .exe/.dll files were found in {source_directory}"
+        )
+
     with zipfile.ZipFile(destination, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(source_directory.rglob("*")):
-            if path.is_file():
-                archive.write(path, path.relative_to(source_directory))
+        for path in runtime_files:
+            archive.write(path, path.name)
+
+    return runtime_files
 
 
 def sha256_file(path: Path) -> str:
@@ -130,7 +143,7 @@ def package(args: argparse.Namespace) -> None:
     package_path = dist_directory / args.package_name
     checksum_path = dist_directory / args.checksum_name
 
-    zip_directory(output_directory, package_path)
+    packaged_files = zip_runtime_files(output_directory, package_path)
     digest = sha256_file(package_path)
     checksum_path.write_text(
         f"{digest}  {package_path.name}\n",
@@ -138,6 +151,9 @@ def package(args: argparse.Namespace) -> None:
     )
 
     print(f"Package: {package_path}")
+    print("Packaged runtime files:")
+    for path in packaged_files:
+        print(f"  {path.name}")
     print(f"SHA256:  {digest}")
 
 

@@ -99,6 +99,40 @@ Public Class SystemRemoteApps
 
     End Function
 
+    Public Function RefreshStrictSessionLaunchers() As String
+        Dim Failures As New System.Collections.Generic.List(Of String)
+
+        Using AppsKey As Microsoft.Win32.RegistryKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RegistryPath)
+            If AppsKey Is Nothing Then Return ""
+
+            For Each AppName As String In AppsKey.GetSubKeyNames()
+                Using AppKey As Microsoft.Win32.RegistryKey = AppsKey.OpenSubKey(AppName)
+                    If AppKey Is Nothing Then Continue For
+                    If CInt(AppKey.GetValue("RemoteAppToolStrictSession", 0)) <> 1 Then Continue For
+
+                    Dim StrictId As String = CStr(AppKey.GetValue("RemoteAppToolStrictId", ""))
+
+                    Try
+                        Dim LauncherPath As String = StrictSessionDeployment.EnsureLauncher(StrictId)
+
+                        Using AppKeyWrite As Microsoft.Win32.RegistryKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RegistryPath & "\" & AppName, True)
+                            If AppKeyWrite Is Nothing Then
+                                Throw New InvalidOperationException("The RemoteApp registry key could not be opened for writing.")
+                            End If
+
+                            AppKeyWrite.SetValue("Path", LauncherPath, Microsoft.Win32.RegistryValueKind.String)
+                            AppKeyWrite.SetValue("VPath", LauncherPath, Microsoft.Win32.RegistryValueKind.String)
+                        End Using
+                    Catch ex As Exception
+                        Failures.Add(AppName & ": " & ex.Message)
+                    End Try
+                End Using
+            Next
+        End Using
+
+        Return String.Join(vbCrLf, Failures.ToArray())
+    End Function
+
     Function GetApp(Name As String) As RemoteApp
         Dim App As New RemoteApp
 

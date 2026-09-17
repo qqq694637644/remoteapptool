@@ -14,6 +14,15 @@ Public Class RemoteAppMainWindow
     Private Sub RemoteAppMainWindow_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Dim sra As New SystemRemoteApps
         sra.Init()
+
+        Dim StrictLauncherRefreshErrors As String = (New SystemRemoteApps).RefreshStrictSessionLaunchers()
+        If StrictLauncherRefreshErrors <> "" Then
+            MessageBox.Show(
+                "Some Strict App Session launchers could not be updated:" & vbCrLf & vbCrLf & StrictLauncherRefreshErrors,
+                "Strict App Session",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
+        End If
         
         Try
             TestIconLib()

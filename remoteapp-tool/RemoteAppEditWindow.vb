@@ -23,6 +23,7 @@ Public Class RemoteAppEditWindow
         HelpSystem.SetupTips(Me)
         Me.CommandLineOptionCombo.SelectedIndex = 1
         Me.TSWAbox.SelectedIndex = 0
+        Me.SessionModeComboBox.SelectedIndex = 0
         Me.FTAButton.Enabled = False
 
         If Advanced Then
@@ -66,7 +67,13 @@ Public Class RemoteAppEditWindow
         Dim TSWA As Integer = 0
         If RemoteApp.TSWA = True Then TSWA = 1
         Me.TSWAbox.SelectedIndex = TSWA
-        Me.StrictSessionCheckBox.Checked = RemoteApp.StrictSessionEnabled
+        If RemoteApp.PersistentSessionEnabled Then
+            Me.SessionModeComboBox.SelectedIndex = 2
+        ElseIf RemoteApp.StrictSessionEnabled Then
+            Me.SessionModeComboBox.SelectedIndex = 1
+        Else
+            Me.SessionModeComboBox.SelectedIndex = 0
+        End If
 
         Dim TheIcon = ReturnIcon(Me.IconPathText.Text, Val(Me.IconIndexText.Text), True)
         If Not TheIcon Is Nothing Then
@@ -140,7 +147,8 @@ Public Class RemoteAppEditWindow
             RemoteApp.CommandLine = CommandLine
             RemoteApp.CommandLineOption = CommandLineSetting
             RemoteApp.TSWA = ShowInTSWA
-            RemoteApp.StrictSessionEnabled = Me.StrictSessionCheckBox.Checked
+            RemoteApp.StrictSessionEnabled = Me.SessionModeComboBox.SelectedIndex <> 0
+            RemoteApp.PersistentSessionEnabled = Me.SessionModeComboBox.SelectedIndex = 2
 
             If RemoteApp.StrictSessionEnabled AndAlso String.IsNullOrEmpty(RemoteApp.StrictSessionId) Then
                 RemoteApp.StrictSessionId = Guid.NewGuid().ToString("D")
@@ -183,8 +191,8 @@ Public Class RemoteAppEditWindow
         ElseIf Me.PathText.Text = "" Then
             MessageBox.Show("Path must not be blank.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
             Me.ShowDialog()
-        ElseIf Me.StrictSessionCheckBox.Checked AndAlso Not IsStrictSessionExecutable(Me.PathText.Text) Then
-            MessageBox.Show("Strict App Session currently supports executable targets (.exe and .com).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
+        ElseIf Me.SessionModeComboBox.SelectedIndex <> 0 AndAlso Not IsManagedSessionExecutable(Me.PathText.Text) Then
+            MessageBox.Show("Strict and Persistent App Session modes currently support executable targets (.exe and .com).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
             Me.ShowDialog()
         ElseIf Not Me.ShortNameText.Text = RemoteApp.Name And DoesAppExist(Me.ShortNameText.Text) Then
             MessageBox.Show("A RemoteApp with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
@@ -204,8 +212,8 @@ Public Class RemoteAppEditWindow
             MessageBox.Show("Full name must not be blank.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         ElseIf Me.PathText.Text = "" Then
             MessageBox.Show("Path must not be blank.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
-        ElseIf Me.StrictSessionCheckBox.Checked AndAlso Not IsStrictSessionExecutable(Me.PathText.Text) Then
-            MessageBox.Show("Strict App Session currently supports executable targets (.exe and .com).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
+        ElseIf Me.SessionModeComboBox.SelectedIndex <> 0 AndAlso Not IsManagedSessionExecutable(Me.PathText.Text) Then
+            MessageBox.Show("Strict and Persistent App Session modes currently support executable targets (.exe and .com).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         ElseIf Not Me.ShortNameText.Text = RemoteApp.Name And DoesAppExist(Me.ShortNameText.Text) Then
             MessageBox.Show("A RemoteApp with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop)
         ElseIf Me.Text = "New RemoteApp" And DoesAppExist(Me.ShortNameText.Text) Then
@@ -215,13 +223,13 @@ Public Class RemoteAppEditWindow
         End If
     End Sub
 
-    Private Function IsStrictSessionExecutable(ByVal TargetPath As String) As Boolean
+    Private Function IsManagedSessionExecutable(ByVal TargetPath As String) As Boolean
         Dim Extension As String = System.IO.Path.GetExtension(TargetPath)
         Return String.Equals(Extension, ".exe", StringComparison.OrdinalIgnoreCase) OrElse String.Equals(Extension, ".com", StringComparison.OrdinalIgnoreCase)
     End Function
 
-    Private Sub StrictSessionCheckBox_CheckedChanged(sender As Object, e As EventArgs) Handles StrictSessionCheckBox.CheckedChanged
-        If Not StrictSessionCheckBox.Checked OrElse StrictPolicyWarningShown Then Return
+    Private Sub SessionModeComboBox_SelectedIndexChanged(sender As Object, e As EventArgs) Handles SessionModeComboBox.SelectedIndexChanged
+        If SessionModeComboBox.SelectedIndex <> 1 OrElse StrictPolicyWarningShown Then Return
 
         If StrictSessionDiagnostics.IsSingleSessionPerUserEnabled() Then
             StrictPolicyWarningShown = True

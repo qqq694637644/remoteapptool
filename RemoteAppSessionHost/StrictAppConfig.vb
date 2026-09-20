@@ -62,25 +62,35 @@ Friend NotInheritable Class StrictAppConfig
                         resolved.StartupGraceMs = ReadNonNegative(appKey, "RemoteAppToolStartupGraceMs", 10000)
                         resolved.CloseGraceMs = ReadNonNegative(appKey, "RemoteAppToolCloseGraceMs", 1500)
                         resolved.PollIntervalMs = 250
-                        resolved.TerminationMode = CInt(appKey.GetValue("RemoteAppToolTerminationMode", 0))
+                        resolved.PersistentSession = CInt(appKey.GetValue("RemoteAppToolPersistentSession", 0)) = 1
                         resolved.ConfigurationSource = "registry:" & aliasName
 
-                        Dim disconnectBehavior As Integer = CInt(appKey.GetValue("RemoteAppToolDisconnectBehavior", 1))
-                        Select Case disconnectBehavior
-                            Case 0
-                                resolved.DisconnectGraceMs = -1
-                            Case 2
-                                resolved.DisconnectGraceMs = 0
-                            Case Else
-                                resolved.DisconnectGraceMs = ReadNonNegative(appKey, "RemoteAppToolDisconnectGraceMs", 30000)
-                        End Select
+                        If resolved.PersistentSession Then
+                            ' Persistent mode keeps the host alive while the tracked application process tree is alive.
+                            ' Visible-window closure (for example, minimizing an IM client to its tray icon) must not
+                            ' terminate the host, and a disconnected client must never trigger our own session logoff.
+                            resolved.TerminationMode = 1
+                            resolved.DisconnectGraceMs = -1
+                        Else
+                            resolved.TerminationMode = CInt(appKey.GetValue("RemoteAppToolTerminationMode", 0))
+
+                            Dim disconnectBehavior As Integer = CInt(appKey.GetValue("RemoteAppToolDisconnectBehavior", 1))
+                            Select Case disconnectBehavior
+                                Case 0
+                                    resolved.DisconnectGraceMs = -1
+                                Case 2
+                                    resolved.DisconnectGraceMs = 0
+                                Case Else
+                                    resolved.DisconnectGraceMs = ReadNonNegative(appKey, "RemoteAppToolDisconnectGraceMs", 30000)
+                            End Select
+                        End If
 
                         For argumentIndex As Integer = 1 To args.Length - 1
                             resolved.TargetArguments.Add(args(argumentIndex))
                         Next
 
                         options = resolved
-                        StrictSessionLog.Write("StrictConfigLoaded alias=" & aliasName & " id=" & strictId.ToString("D"))
+                        StrictSessionLog.Write("StrictConfigLoaded alias=" & aliasName & " id=" & strictId.ToString("D") & " persistent=" & resolved.PersistentSession.ToString())
                         Return True
                     End Using
                 Next

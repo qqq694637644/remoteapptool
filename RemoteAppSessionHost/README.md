@@ -21,6 +21,18 @@ disableconnectionsharing:i:1
 
 so each Strict launch requests a new session.
 
+## Persistent App Session
+
+**Persistent App Session** reuses the same launcher infrastructure but changes the lifecycle for long-running tray/background applications such as messaging clients:
+
+- the launcher tracks the application process tree instead of treating the last visible window as application exit;
+- closing or hiding the application's last window does not log off the session while the tracked process is still running;
+- disconnecting the RemoteApp client never triggers the launcher's disconnect-logoff path;
+- generated client connections keep connection sharing enabled so Windows can reconnect to the existing disconnected user session instead of forcing a new Strict session;
+- when the tracked process tree actually exits, the launcher exits without calling `WTSLogoffSession`.
+
+Persistent mode does not override an administrator- or domain-enforced RDS disconnected-session timeout. If such a policy exists, that external policy remains authoritative.
+
 ## Safety behavior
 
 - No session ID is accepted from the command line. The host can only request logoff for its own session.
@@ -52,6 +64,7 @@ Options:
   --disconnect-grace-ms <n>   default 30000; -1 preserves disconnected sessions
   --poll-ms <n>               default 250
   --no-logoff                 detect lifecycle but do not call WTSLogoffSession
+  --persistent                use process-tree tracking and preserve disconnected sessions
 ```
 
 Safe local smoke test:

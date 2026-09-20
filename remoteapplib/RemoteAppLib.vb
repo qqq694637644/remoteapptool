@@ -24,6 +24,7 @@ Public Class RemoteApp
     Public TSWA As Boolean = False
     Public FileTypeAssociations As FileTypeAssociationCollection
     Public StrictSessionEnabled As Boolean = False
+    Public PersistentSessionEnabled As Boolean = False
     Public StrictSessionId As String = ""
     Public StrictTerminationMode As Integer = 0
     Public StrictStartupGraceMs As Integer = 10000
@@ -144,6 +145,7 @@ Public Class SystemRemoteApps
         App.FullName = AppKey.GetValue("Name", "")
 
         App.StrictSessionEnabled = CInt(AppKey.GetValue("RemoteAppToolStrictSession", 0)) = 1
+        App.PersistentSessionEnabled = App.StrictSessionEnabled AndAlso CInt(AppKey.GetValue("RemoteAppToolPersistentSession", 0)) = 1
         App.StrictSessionId = CStr(AppKey.GetValue("RemoteAppToolStrictId", ""))
         App.StrictTerminationMode = CInt(AppKey.GetValue("RemoteAppToolTerminationMode", 0))
         App.StrictStartupGraceMs = CInt(AppKey.GetValue("RemoteAppToolStartupGraceMs", 10000))
@@ -194,6 +196,9 @@ Public Class SystemRemoteApps
     End Function
 
     Public Sub SaveApp(RemoteApp As RemoteApp)
+        If RemoteApp.PersistentSessionEnabled Then RemoteApp.StrictSessionEnabled = True
+        Dim ManagedSessionEnabled As Boolean = RemoteApp.StrictSessionEnabled OrElse RemoteApp.PersistentSessionEnabled
+
         Dim ExistingStrictId As String = ""
         Dim ExistingKey As Microsoft.Win32.RegistryKey = BaseKey.OpenSubKey(RemoteApp.Name)
         If Not ExistingKey Is Nothing Then
@@ -202,7 +207,7 @@ Public Class SystemRemoteApps
         End If
 
         Dim StrictLauncherPath As String = ""
-        If RemoteApp.StrictSessionEnabled Then
+        If ManagedSessionEnabled Then
             If String.IsNullOrEmpty(RemoteApp.StrictSessionId) Then
                 RemoteApp.StrictSessionId = System.Guid.NewGuid().ToString("D")
             End If
@@ -234,15 +239,16 @@ Public Class SystemRemoteApps
             FTAKey.Close()
         End If
 
-        If RemoteApp.StrictSessionEnabled Then
+        If ManagedSessionEnabled Then
             AppKey.SetValue("RemoteAppToolStrictSession", 1, Microsoft.Win32.RegistryValueKind.DWord)
+            AppKey.SetValue("RemoteAppToolPersistentSession", If(RemoteApp.PersistentSessionEnabled, 1, 0), Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolStrictId", RemoteApp.StrictSessionId, Microsoft.Win32.RegistryValueKind.String)
             AppKey.SetValue("RemoteAppToolTargetPath", RemoteApp.Path, Microsoft.Win32.RegistryValueKind.String)
             AppKey.SetValue("RemoteAppToolTargetVPath", RemoteApp.VPath, Microsoft.Win32.RegistryValueKind.String)
-            AppKey.SetValue("RemoteAppToolTerminationMode", RemoteApp.StrictTerminationMode, Microsoft.Win32.RegistryValueKind.DWord)
+            AppKey.SetValue("RemoteAppToolTerminationMode", If(RemoteApp.PersistentSessionEnabled, 1, RemoteApp.StrictTerminationMode), Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolStartupGraceMs", RemoteApp.StrictStartupGraceMs, Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolCloseGraceMs", RemoteApp.StrictCloseGraceMs, Microsoft.Win32.RegistryValueKind.DWord)
-            AppKey.SetValue("RemoteAppToolDisconnectBehavior", RemoteApp.StrictDisconnectBehavior, Microsoft.Win32.RegistryValueKind.DWord)
+            AppKey.SetValue("RemoteAppToolDisconnectBehavior", If(RemoteApp.PersistentSessionEnabled, 0, RemoteApp.StrictDisconnectBehavior), Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolDisconnectGraceMs", RemoteApp.StrictDisconnectGraceMs, Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolSchemaVersion", RemoteApp.StrictSchemaVersion, Microsoft.Win32.RegistryValueKind.DWord)
 
@@ -257,9 +263,9 @@ Public Class SystemRemoteApps
 
         AppKey.Close()
 
-        If Not RemoteApp.StrictSessionEnabled AndAlso ExistingStrictId <> "" Then
+        If Not ManagedSessionEnabled AndAlso ExistingStrictId <> "" Then
             StrictSessionDeployment.CleanupLauncher(ExistingStrictId)
-        ElseIf RemoteApp.StrictSessionEnabled AndAlso ExistingStrictId <> "" AndAlso Not String.Equals(ExistingStrictId, RemoteApp.StrictSessionId, StringComparison.OrdinalIgnoreCase) Then
+        ElseIf ManagedSessionEnabled AndAlso ExistingStrictId <> "" AndAlso Not String.Equals(ExistingStrictId, RemoteApp.StrictSessionId, StringComparison.OrdinalIgnoreCase) Then
             StrictSessionDeployment.CleanupLauncher(ExistingStrictId)
         End If
 
@@ -268,6 +274,7 @@ Public Class SystemRemoteApps
     Private Shared Sub DeleteStrictValues(AppKey As Microsoft.Win32.RegistryKey)
         Dim Values() As String = {
             "RemoteAppToolStrictSession",
+            "RemoteAppToolPersistentSession",
             "RemoteAppToolStrictId",
             "RemoteAppToolTargetPath",
             "RemoteAppToolTargetVPath",
@@ -295,7 +302,7 @@ Public Class SystemRemoteApps
 
         NewApp.Name = NewName
 
-        If NewApp.StrictSessionEnabled Then
+        If NewApp.StrictSessionEnabled OrElse NewApp.PersistentSessionEnabled Then
             NewApp.StrictSessionId = System.Guid.NewGuid().ToString("D")
             NewApp.StrictSessionLauncherPath = ""
         End If

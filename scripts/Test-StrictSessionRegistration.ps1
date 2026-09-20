@@ -25,9 +25,20 @@ if (-not $appKeyPath) {
 }
 
 $app = Get-ItemProperty -Path $appKeyPath
+$persistent = [int]$app.RemoteAppToolPersistentSession -eq 1
 
 if ([int]$app.RemoteAppToolStrictSession -ne 1) {
     Add-Failure 'RemoteAppToolStrictSession is not enabled.'
+}
+
+if ($persistent) {
+    if ([int]$app.RemoteAppToolTerminationMode -ne 1) {
+        Add-Failure 'Persistent App Session must use ProcessTreeExited termination mode (1).'
+    }
+
+    if ([int]$app.RemoteAppToolDisconnectBehavior -ne 0) {
+        Add-Failure 'Persistent App Session must preserve disconnected sessions (disconnect behavior 0).'
+    }
 }
 
 $strictId = [Guid]::Empty
@@ -65,11 +76,18 @@ if ($RdpPath) {
         $rdpLines = Get-Content -LiteralPath $RdpPath
         $connectionSharingLines = @($rdpLines | Where-Object { $_ -match '^disableconnectionsharing:i:' })
 
-        if ($connectionSharingLines.Count -ne 1) {
-            Add-Failure "RDP must contain exactly one disableconnectionsharing property; found $($connectionSharingLines.Count)."
+        if ($persistent) {
+            if ($connectionSharingLines | Where-Object { $_ -eq 'disableconnectionsharing:i:1' }) {
+                Add-Failure 'Persistent App Session RDP must not disable connection sharing.'
+            }
         }
-        elseif ($connectionSharingLines[0] -ne 'disableconnectionsharing:i:1') {
-            Add-Failure "RDP does not force a new connection: $($connectionSharingLines[0])"
+        else {
+            if ($connectionSharingLines.Count -ne 1) {
+                Add-Failure "Strict App Session RDP must contain exactly one disableconnectionsharing property; found $($connectionSharingLines.Count)."
+            }
+            elseif ($connectionSharingLines[0] -ne 'disableconnectionsharing:i:1') {
+                Add-Failure "Strict App Session RDP does not force a new connection: $($connectionSharingLines[0])"
+            }
         }
 
         $expectedProgram = "remoteapplicationprogram:s:||$Alias"
@@ -83,6 +101,7 @@ $result = [pscustomobject]@{
     Alias = $Alias
     RegistryPath = $appKeyPath
     StrictId = [string]$app.RemoteAppToolStrictId
+    Persistent = $persistent
     TargetPath = [string]$app.RemoteAppToolTargetPath
     PublishedPath = [string]$app.Path
     CloseGraceMs = [int]$app.RemoteAppToolCloseGraceMs
@@ -104,4 +123,5 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host ''
-Write-Host 'Strict App Session registration preflight passed.' -ForegroundColor Green
+$modeName = if ($persistent) { 'Persistent' } else { 'Strict' }
+Write-Host "$modeName App Session registration preflight passed." -ForegroundColor Green

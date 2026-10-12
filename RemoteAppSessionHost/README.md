@@ -11,7 +11,7 @@ When a RemoteApp has **Strict App Session** enabled, RemoteApp Tool stores the r
 5. log off **only the current session** with `WTSLogoffSession`;
 6. optionally log off a disconnected session after a separate disconnect grace period.
 
-The default termination mode is `LastTrackedWindowClosed`. The launcher also supports registry-configured `ProcessTreeExited` and `PrimaryProcessExited` modes for applications that do not expose a normal top-level window lifecycle.
+Strict always uses `LastTrackedWindowClosed`. Persistent always uses `ProcessTreeExited`. The two modes do not share termination or disconnect policies.
 
 RemoteApp Tool also forces generated Strict RDP connections to use:
 
@@ -32,6 +32,12 @@ so each Strict launch requests a new session.
 - when the tracked process tree actually exits, the launcher exits without calling `WTSLogoffSession`.
 
 Persistent mode does not override an administrator- or domain-enforced RDS disconnected-session timeout. If such a policy exists, that external policy remains authoritative.
+
+## Breaking configuration change (schema v2)
+
+The published app now stores exactly one mode in `RemoteAppToolSessionMode`: `1` = Strict, `2` = Persistent. Normal apps do not have managed-session metadata. The old `RemoteAppToolStrictSession`, `RemoteAppToolPersistentSession`, `RemoteAppToolTerminationMode`, and `RemoteAppToolDisconnectBehavior` values are no longer supported. The launcher requires `RemoteAppToolSchemaVersion = 2`.
+
+**No upgrade or fallback is provided for v1 registrations.** Before installing this version, back up and remove existing Strict/Persistent RemoteApp registrations, then recreate them in RemoteApp Tool and regenerate client RDP/MSI packages. Do not merely change the schema version in the registry. Strict mode now always logs off on last-window close (or after its configured disconnect grace period); Persistent mode always preserves disconnects and tracks the process tree.
 
 ## Safety behavior
 

@@ -11,6 +11,12 @@
     End Sub
 End Class
 
+Public Enum RemoteAppSessionMode
+    Normal = 0
+    Strict = 1
+    Persistent = 2
+End Enum
+
 Public Class RemoteApp
 
     Public Name As String
@@ -23,15 +29,11 @@ Public Class RemoteApp
     Public CommandLineOption As Integer = 1
     Public TSWA As Boolean = False
     Public FileTypeAssociations As FileTypeAssociationCollection
-    Public StrictSessionEnabled As Boolean = False
-    Public PersistentSessionEnabled As Boolean = False
+    Public SessionMode As RemoteAppSessionMode = RemoteAppSessionMode.Normal
     Public StrictSessionId As String = ""
-    Public StrictTerminationMode As Integer = 0
     Public StrictStartupGraceMs As Integer = 10000
     Public StrictCloseGraceMs As Integer = 1500
-    Public StrictDisconnectBehavior As Integer = 1
     Public StrictDisconnectGraceMs As Integer = 30000
-    Public StrictSchemaVersion As Integer = 1
     Public StrictSessionLauncherPath As String = ""
 
 End Class
@@ -71,6 +73,7 @@ End Class
 
 
 Public Class SystemRemoteApps
+    Private Const ManagedSessionSchemaVersion As Integer = 2
     Private Legacy32bit As Boolean = False
     Private RegistryPath As String = "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Terminal Server\TSAppAllowList\Applications"
     Private BaseKey As Microsoft.Win32.RegistryKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RegistryPath)
@@ -109,11 +112,10 @@ Public Class SystemRemoteApps
             For Each AppName As String In AppsKey.GetSubKeyNames()
                 Using AppKey As Microsoft.Win32.RegistryKey = AppsKey.OpenSubKey(AppName)
                     If AppKey Is Nothing Then Continue For
-                    If CInt(AppKey.GetValue("RemoteAppToolStrictSession", 0)) <> 1 Then Continue For
-
-                    Dim StrictId As String = CStr(AppKey.GetValue("RemoteAppToolStrictId", ""))
-
                     Try
+                        If ReadSessionMode(AppKey, AppName) = RemoteAppSessionMode.Normal Then Continue For
+
+                        Dim StrictId As String = CStr(AppKey.GetValue("RemoteAppToolStrictId", ""))
                         Dim LauncherPath As String = StrictSessionDeployment.EnsureLauncher(StrictId)
 
                         Using AppKeyWrite As Microsoft.Win32.RegistryKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RegistryPath & "\" & AppName, True)
@@ -134,6 +136,39 @@ Public Class SystemRemoteApps
         Return String.Join(vbCrLf, Failures.ToArray())
     End Function
 
+    Private Shared Function ReadSessionMode(ByVal appKey As Microsoft.Win32.RegistryKey, ByVal aliasName As String) As RemoteAppSessionMode
+        For Each obsoleteName As String In New String() {
+            "RemoteAppToolStrictSession",
+            "RemoteAppToolPersistentSession",
+            "RemoteAppToolTerminationMode",
+            "RemoteAppToolDisconnectBehavior"
+        }
+            If appKey.GetValue(obsoleteName, Nothing) IsNot Nothing Then
+                Throw New InvalidOperationException("RemoteApp " & aliasName & " contains obsolete " & obsoleteName & ". Delete and recreate this RemoteApp using schema v2; automatic migration is not supported.")
+            End If
+        Next
+
+        Dim rawMode As Object = appKey.GetValue("RemoteAppToolSessionMode", Nothing)
+        If rawMode Is Nothing Then
+            If appKey.GetValue("RemoteAppToolSchemaVersion", Nothing) IsNot Nothing Then
+                Throw New InvalidOperationException("RemoteApp " & aliasName & " has session metadata without a session mode. Delete and recreate the RemoteApp.")
+            End If
+            Return RemoteAppSessionMode.Normal
+        End If
+
+        Dim mode As Integer = Convert.ToInt32(rawMode)
+        If mode <> CInt(RemoteAppSessionMode.Strict) AndAlso mode <> CInt(RemoteAppSessionMode.Persistent) Then
+            Throw New InvalidOperationException("RemoteApp " & aliasName & " has an invalid managed session mode: " & mode.ToString())
+        End If
+
+        Dim schema As Integer = Convert.ToInt32(appKey.GetValue("RemoteAppToolSchemaVersion", -1))
+        If schema <> ManagedSessionSchemaVersion Then
+            Throw New InvalidOperationException("RemoteApp " & aliasName & " requires session schema v2. Delete and recreate the RemoteApp.")
+        End If
+
+        Return CType(mode, RemoteAppSessionMode)
+    End Function
+
     Function GetApp(Name As String) As RemoteApp
         Dim App As New RemoteApp
 
@@ -144,24 +179,20 @@ Public Class SystemRemoteApps
         App.Name = Name
         App.FullName = AppKey.GetValue("Name", "")
 
-        App.StrictSessionEnabled = CInt(AppKey.GetValue("RemoteAppToolStrictSession", 0)) = 1
-        App.PersistentSessionEnabled = App.StrictSessionEnabled AndAlso CInt(AppKey.GetValue("RemoteAppToolPersistentSession", 0)) = 1
+        App.SessionMode = ReadSessionMode(AppKey, Name)
         App.StrictSessionId = CStr(AppKey.GetValue("RemoteAppToolStrictId", ""))
-        App.StrictTerminationMode = CInt(AppKey.GetValue("RemoteAppToolTerminationMode", 0))
         App.StrictStartupGraceMs = CInt(AppKey.GetValue("RemoteAppToolStartupGraceMs", 10000))
         App.StrictCloseGraceMs = CInt(AppKey.GetValue("RemoteAppToolCloseGraceMs", 1500))
-        App.StrictDisconnectBehavior = CInt(AppKey.GetValue("RemoteAppToolDisconnectBehavior", 1))
         App.StrictDisconnectGraceMs = CInt(AppKey.GetValue("RemoteAppToolDisconnectGraceMs", 30000))
-        App.StrictSchemaVersion = CInt(AppKey.GetValue("RemoteAppToolSchemaVersion", 1))
 
-        If App.StrictSessionEnabled Then
+        If App.SessionMode <> RemoteAppSessionMode.Normal Then
             App.StrictSessionLauncherPath = CStr(AppKey.GetValue("Path", ""))
             App.Path = CStr(AppKey.GetValue("RemoteAppToolTargetPath", ""))
             App.VPath = CStr(AppKey.GetValue("RemoteAppToolTargetVPath", App.Path))
 
-            ' Fail readable for an incomplete legacy/partial strict configuration.
-            If App.Path = "" Then App.Path = App.StrictSessionLauncherPath
-            If App.VPath = "" Then App.VPath = App.Path
+            If String.IsNullOrWhiteSpace(App.Path) OrElse String.IsNullOrWhiteSpace(App.VPath) Then
+                Throw New InvalidOperationException("RemoteApp " & Name & " is missing its managed session target path. Recreate the RemoteApp.")
+            End If
         Else
             App.Path = CStr(AppKey.GetValue("Path", ""))
             App.VPath = CStr(AppKey.GetValue("VPath", ""))
@@ -196,8 +227,10 @@ Public Class SystemRemoteApps
     End Function
 
     Public Sub SaveApp(RemoteApp As RemoteApp)
-        If RemoteApp.PersistentSessionEnabled Then RemoteApp.StrictSessionEnabled = True
-        Dim ManagedSessionEnabled As Boolean = RemoteApp.StrictSessionEnabled OrElse RemoteApp.PersistentSessionEnabled
+        If Not System.Enum.IsDefined(GetType(RemoteAppSessionMode), RemoteApp.SessionMode) Then
+            Throw New ArgumentOutOfRangeException("SessionMode")
+        End If
+        Dim ManagedSessionEnabled As Boolean = RemoteApp.SessionMode <> RemoteAppSessionMode.Normal
 
         Dim ExistingStrictId As String = ""
         Dim ExistingKey As Microsoft.Win32.RegistryKey = BaseKey.OpenSubKey(RemoteApp.Name)
@@ -240,17 +273,20 @@ Public Class SystemRemoteApps
         End If
 
         If ManagedSessionEnabled Then
-            AppKey.SetValue("RemoteAppToolStrictSession", 1, Microsoft.Win32.RegistryValueKind.DWord)
-            AppKey.SetValue("RemoteAppToolPersistentSession", If(RemoteApp.PersistentSessionEnabled, 1, 0), Microsoft.Win32.RegistryValueKind.DWord)
+            AppKey.SetValue("RemoteAppToolSessionMode", CInt(RemoteApp.SessionMode), Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolStrictId", RemoteApp.StrictSessionId, Microsoft.Win32.RegistryValueKind.String)
             AppKey.SetValue("RemoteAppToolTargetPath", RemoteApp.Path, Microsoft.Win32.RegistryValueKind.String)
             AppKey.SetValue("RemoteAppToolTargetVPath", RemoteApp.VPath, Microsoft.Win32.RegistryValueKind.String)
-            AppKey.SetValue("RemoteAppToolTerminationMode", If(RemoteApp.PersistentSessionEnabled, 1, RemoteApp.StrictTerminationMode), Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolStartupGraceMs", RemoteApp.StrictStartupGraceMs, Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolCloseGraceMs", RemoteApp.StrictCloseGraceMs, Microsoft.Win32.RegistryValueKind.DWord)
-            AppKey.SetValue("RemoteAppToolDisconnectBehavior", If(RemoteApp.PersistentSessionEnabled, 0, RemoteApp.StrictDisconnectBehavior), Microsoft.Win32.RegistryValueKind.DWord)
             AppKey.SetValue("RemoteAppToolDisconnectGraceMs", RemoteApp.StrictDisconnectGraceMs, Microsoft.Win32.RegistryValueKind.DWord)
-            AppKey.SetValue("RemoteAppToolSchemaVersion", RemoteApp.StrictSchemaVersion, Microsoft.Win32.RegistryValueKind.DWord)
+            AppKey.SetValue("RemoteAppToolSchemaVersion", ManagedSessionSchemaVersion, Microsoft.Win32.RegistryValueKind.DWord)
+
+            ' Schema v2 uses a single mode. Discard all previous lifecycle overrides.
+            AppKey.DeleteValue("RemoteAppToolStrictSession", False)
+            AppKey.DeleteValue("RemoteAppToolPersistentSession", False)
+            AppKey.DeleteValue("RemoteAppToolTerminationMode", False)
+            AppKey.DeleteValue("RemoteAppToolDisconnectBehavior", False)
 
             ' Switch the published executable last, after all strict metadata is durable.
             AppKey.SetValue("Path", StrictLauncherPath, Microsoft.Win32.RegistryValueKind.String)
@@ -273,6 +309,7 @@ Public Class SystemRemoteApps
 
     Private Shared Sub DeleteStrictValues(AppKey As Microsoft.Win32.RegistryKey)
         Dim Values() As String = {
+            "RemoteAppToolSessionMode",
             "RemoteAppToolStrictSession",
             "RemoteAppToolPersistentSession",
             "RemoteAppToolStrictId",
@@ -302,7 +339,7 @@ Public Class SystemRemoteApps
 
         NewApp.Name = NewName
 
-        If NewApp.StrictSessionEnabled OrElse NewApp.PersistentSessionEnabled Then
+        If NewApp.SessionMode <> RemoteAppSessionMode.Normal Then
             NewApp.StrictSessionId = System.Guid.NewGuid().ToString("D")
             NewApp.StrictSessionLauncherPath = ""
         End If

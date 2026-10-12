@@ -72,6 +72,10 @@ jobs:
           "/p:FrameworkPathOverride=%FRAMEWORK_PATH_OVERRIDE%"
           /verbosity:minimal
 
+      - name: Test session mode transitions
+        shell: powershell
+        run: .\scripts\Test-SessionModeContract.ps1 -Configuration Release
+
       - name: Package runtime EXE/DLL files
         shell: cmd
         run: >-

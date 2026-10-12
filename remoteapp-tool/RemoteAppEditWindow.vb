@@ -67,13 +67,7 @@ Public Class RemoteAppEditWindow
         Dim TSWA As Integer = 0
         If RemoteApp.TSWA = True Then TSWA = 1
         Me.TSWAbox.SelectedIndex = TSWA
-        If RemoteApp.PersistentSessionEnabled Then
-            Me.SessionModeComboBox.SelectedIndex = 2
-        ElseIf RemoteApp.StrictSessionEnabled Then
-            Me.SessionModeComboBox.SelectedIndex = 1
-        Else
-            Me.SessionModeComboBox.SelectedIndex = 0
-        End If
+        Me.SessionModeComboBox.SelectedIndex = CInt(RemoteApp.SessionMode)
 
         Dim TheIcon = ReturnIcon(Me.IconPathText.Text, Val(Me.IconIndexText.Text), True)
         If Not TheIcon Is Nothing Then
@@ -147,10 +141,12 @@ Public Class RemoteAppEditWindow
             RemoteApp.CommandLine = CommandLine
             RemoteApp.CommandLineOption = CommandLineSetting
             RemoteApp.TSWA = ShowInTSWA
-            RemoteApp.StrictSessionEnabled = Me.SessionModeComboBox.SelectedIndex <> 0
-            RemoteApp.PersistentSessionEnabled = Me.SessionModeComboBox.SelectedIndex = 2
+            If Me.SessionModeComboBox.SelectedIndex < 0 OrElse Me.SessionModeComboBox.SelectedIndex > 2 Then
+                Throw New ArgumentException("Choose a valid session mode.")
+            End If
+            RemoteApp.SessionMode = CType(Me.SessionModeComboBox.SelectedIndex, RemoteAppSessionMode)
 
-            If RemoteApp.StrictSessionEnabled AndAlso String.IsNullOrEmpty(RemoteApp.StrictSessionId) Then
+            If RemoteApp.SessionMode <> RemoteAppSessionMode.Normal AndAlso String.IsNullOrEmpty(RemoteApp.StrictSessionId) Then
                 RemoteApp.StrictSessionId = Guid.NewGuid().ToString("D")
             End If
 

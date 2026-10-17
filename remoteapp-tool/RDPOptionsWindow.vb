@@ -85,7 +85,7 @@
     Public RecommendedDefaultOptions As String(,) = {
         {"disableremoteappcapscheck", "disableremoteappcapscheck", "i", "1"},
         {"drivestoredirect", "drivestoredirect", "s", "*"},
-        {"prompt_for_credentials", "prompt for credentials", "i", "1"},
+        {"prompt_for_credentials", "prompt for credentials", "i", "0"},
         {"promptcredentialonce", "promptcredentialonce", "i", "0"},
         {"redirectcomports", "redirectcomports", "i", "1"},
         {"span_monitors", "span monitors", "i", "1"},

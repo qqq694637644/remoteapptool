@@ -54,7 +54,8 @@ Partial Class RemoteAppEditWindow
         Me.BrowsePath = New System.Windows.Forms.Button()
         Me.GroupBox3 = New System.Windows.Forms.GroupBox()
         Me.Label1 = New System.Windows.Forms.Label()
-        Me.StrictSessionCheckBox = New System.Windows.Forms.CheckBox()
+        Me.SessionModeLabel = New System.Windows.Forms.Label()
+        Me.SessionModeComboBox = New System.Windows.Forms.ComboBox()
         Me.GroupBox1.SuspendLayout()
         Me.GroupBox2.SuspendLayout()
         Me.GroupBox3.SuspendLayout()
@@ -373,7 +374,8 @@ Partial Class RemoteAppEditWindow
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.GroupBox3.Controls.Add(Me.Label8)
         Me.GroupBox3.Controls.Add(Me.Label1)
-        Me.GroupBox3.Controls.Add(Me.StrictSessionCheckBox)
+        Me.GroupBox3.Controls.Add(Me.SessionModeComboBox)
+        Me.GroupBox3.Controls.Add(Me.SessionModeLabel)
         Me.GroupBox3.Controls.Add(Me.Label6)
         Me.GroupBox3.Controls.Add(Me.Label10)
         Me.GroupBox3.Controls.Add(Me.FTAButton)
@@ -397,15 +399,27 @@ Partial Class RemoteAppEditWindow
         Me.Label1.TabIndex = 6
         Me.Label1.Text = "File type associations:"
         '
-        'StrictSessionCheckBox
+        'SessionModeLabel
         '
-        Me.StrictSessionCheckBox.AutoSize = True
-        Me.StrictSessionCheckBox.Location = New System.Drawing.Point(9, 123)
-        Me.StrictSessionCheckBox.Name = "StrictSessionCheckBox"
-        Me.StrictSessionCheckBox.Size = New System.Drawing.Size(329, 19)
-        Me.StrictSessionCheckBox.TabIndex = 8
-        Me.StrictSessionCheckBox.Text = "Strict App Session (log off session when app is closed)"
-        Me.StrictSessionCheckBox.UseVisualStyleBackColor = True
+        Me.SessionModeLabel.AutoSize = True
+        Me.SessionModeLabel.Location = New System.Drawing.Point(6, 123)
+        Me.SessionModeLabel.Name = "SessionModeLabel"
+        Me.SessionModeLabel.Size = New System.Drawing.Size(82, 15)
+        Me.SessionModeLabel.TabIndex = 8
+        Me.SessionModeLabel.Text = "Session mode:"
+        '
+        'SessionModeComboBox
+        '
+        Me.SessionModeComboBox.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.SessionModeComboBox.BackColor = System.Drawing.Color.WhiteSmoke
+        Me.SessionModeComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.SessionModeComboBox.FormattingEnabled = True
+        Me.SessionModeComboBox.Items.AddRange(New Object() {"Normal", "Strict App Session", "Persistent App Session"})
+        Me.SessionModeComboBox.Location = New System.Drawing.Point(94, 119)
+        Me.SessionModeComboBox.Name = "SessionModeComboBox"
+        Me.SessionModeComboBox.Size = New System.Drawing.Size(305, 23)
+        Me.SessionModeComboBox.TabIndex = 9
         '
         'RemoteAppEditWindow
         '
@@ -468,5 +482,6 @@ Partial Class RemoteAppEditWindow
     Friend WithEvents BrowsePath As Button
     Friend WithEvents GroupBox3 As GroupBox
     Friend WithEvents Label1 As Label
-    Friend WithEvents StrictSessionCheckBox As CheckBox
+    Friend WithEvents SessionModeLabel As Label
+    Friend WithEvents SessionModeComboBox As ComboBox
 End Class

@@ -25,9 +25,17 @@ if (-not $appKeyPath) {
 }
 
 $app = Get-ItemProperty -Path $appKeyPath
+$mode = [int]$app.RemoteAppToolSessionMode
+$persistent = $mode -eq 2
 
-if ([int]$app.RemoteAppToolStrictSession -ne 1) {
-    Add-Failure 'RemoteAppToolStrictSession is not enabled.'
+if ($mode -notin @(1, 2)) {
+    Add-Failure "RemoteAppToolSessionMode must be 1 (Strict) or 2 (Persistent); found $mode."
+}
+
+foreach ($legacyName in @('RemoteAppToolStrictSession', 'RemoteAppToolPersistentSession', 'RemoteAppToolTerminationMode', 'RemoteAppToolDisconnectBehavior')) {
+    if ($app.PSObject.Properties.Name -contains $legacyName) {
+        Add-Failure "Obsolete lifecycle field $legacyName must be removed (schema v2 has no legacy fallback)."
+    }
 }
 
 $strictId = [Guid]::Empty
@@ -53,7 +61,7 @@ if (-not [string]::IsNullOrWhiteSpace([string]$app.Path) -and -not (Test-Path -L
     Add-Failure "Published Strict launcher does not exist: $($app.Path)"
 }
 
-if ([int]$app.RemoteAppToolSchemaVersion -ne 1) {
+if ([int]$app.RemoteAppToolSchemaVersion -ne 2) {
     Add-Failure "Unexpected Strict schema version: $($app.RemoteAppToolSchemaVersion)"
 }
 
@@ -65,11 +73,21 @@ if ($RdpPath) {
         $rdpLines = Get-Content -LiteralPath $RdpPath
         $connectionSharingLines = @($rdpLines | Where-Object { $_ -match '^disableconnectionsharing:i:' })
 
-        if ($connectionSharingLines.Count -ne 1) {
-            Add-Failure "RDP must contain exactly one disableconnectionsharing property; found $($connectionSharingLines.Count)."
+        if ($persistent) {
+            if ($connectionSharingLines.Count -gt 1) {
+                Add-Failure "Persistent App Session RDP contains duplicate disableconnectionsharing properties."
+            }
+            elseif ($connectionSharingLines.Count -eq 1 -and $connectionSharingLines[0] -ne 'disableconnectionsharing:i:0') {
+                Add-Failure "Persistent App Session RDP must allow connection sharing: $($connectionSharingLines[0])"
+            }
         }
-        elseif ($connectionSharingLines[0] -ne 'disableconnectionsharing:i:1') {
-            Add-Failure "RDP does not force a new connection: $($connectionSharingLines[0])"
+        else {
+            if ($connectionSharingLines.Count -ne 1) {
+                Add-Failure "Strict App Session RDP must contain exactly one disableconnectionsharing property; found $($connectionSharingLines.Count)."
+            }
+            elseif ($connectionSharingLines[0] -ne 'disableconnectionsharing:i:1') {
+                Add-Failure "Strict App Session RDP does not force a new connection: $($connectionSharingLines[0])"
+            }
         }
 
         $expectedProgram = "remoteapplicationprogram:s:||$Alias"
@@ -83,11 +101,14 @@ $result = [pscustomobject]@{
     Alias = $Alias
     RegistryPath = $appKeyPath
     StrictId = [string]$app.RemoteAppToolStrictId
+    Mode = $mode
+    Persistent = $persistent
     TargetPath = [string]$app.RemoteAppToolTargetPath
     PublishedPath = [string]$app.Path
     CloseGraceMs = [int]$app.RemoteAppToolCloseGraceMs
-    DisconnectBehavior = [int]$app.RemoteAppToolDisconnectBehavior
     DisconnectGraceMs = [int]$app.RemoteAppToolDisconnectGraceMs
+    EffectiveTerminationMode = if ($persistent) { 1 } else { 0 }
+    EffectiveDisconnectGraceMs = if ($persistent) { -1 } else { [int]$app.RemoteAppToolDisconnectGraceMs }
     RdpPath = $RdpPath
     Passed = ($failures.Count -eq 0)
 }
@@ -104,4 +125,5 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host ''
-Write-Host 'Strict App Session registration preflight passed.' -ForegroundColor Green
+$modeName = if ($persistent) { 'Persistent' } else { 'Strict' }
+Write-Host "$modeName App Session registration preflight passed." -ForegroundColor Green

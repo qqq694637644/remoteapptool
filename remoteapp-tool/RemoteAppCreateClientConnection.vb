@@ -307,7 +307,7 @@ Public Class RemoteAppCreateClientConnection
         If Not FileTypeAssociations Is Nothing Then FlatFileTypes = FileTypeAssociations.GetFlatFileTypes
 
         Dim excludedAdditionalOption As String = ""
-        If RemoteApp.StrictSessionEnabled Then excludedAdditionalOption = "disableconnectionsharing"
+        If RemoteApp.SessionMode <> RemoteAppLib.RemoteAppSessionMode.Normal Then excludedAdditionalOption = "disableconnectionsharing"
 
         Dim RDPfile As New RDPFileLib.RDPFile With {
             .full_address = ServerAddress,
@@ -320,7 +320,16 @@ Public Class RemoteAppCreateClientConnection
             .AdditionalOptions = ExportAdditionalOptionsRdpString(excludedAdditionalOption)
         }
 
-        If RemoteApp.StrictSessionEnabled Then RDPfile.disableconnectionsharing = 1
+        Select Case RemoteApp.SessionMode
+            Case RemoteAppLib.RemoteAppSessionMode.Strict
+                RDPfile.disableconnectionsharing = 1
+            Case RemoteAppLib.RemoteAppSessionMode.Persistent
+                RDPfile.disableconnectionsharing = 0
+            Case RemoteAppLib.RemoteAppSessionMode.Normal
+                ' Respect user-specified connection options for normal RemoteApps.
+            Case Else
+                Throw New ArgumentException("Invalid RemoteApp session mode.")
+        End Select
 
         If UseRDGatewayCheckBox.Checked Then
             RDPfile.gatewayhostname = Me.GatewayAddress.Text

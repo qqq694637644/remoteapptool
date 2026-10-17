@@ -29,13 +29,27 @@ Friend NotInheritable Class StrictAppConfig
                     Using appKey As RegistryKey = applicationsKey.OpenSubKey(aliasName)
                         If appKey Is Nothing Then Continue For
 
-                        If CInt(appKey.GetValue("RemoteAppToolStrictSession", 0)) <> 1 Then Continue For
-
                         Dim configuredId As String = CStr(appKey.GetValue("RemoteAppToolStrictId", ""))
                         If Not String.Equals(configuredId, strictId.ToString("D"), StringComparison.OrdinalIgnoreCase) Then Continue For
 
+                        For Each obsoleteName As String In New String() {
+                            "RemoteAppToolStrictSession",
+                            "RemoteAppToolPersistentSession",
+                            "RemoteAppToolTerminationMode",
+                            "RemoteAppToolDisconnectBehavior"
+                        }
+                            If appKey.GetValue(obsoleteName, Nothing) IsNot Nothing Then
+                                Throw New InvalidOperationException("RemoteApp " & aliasName & " contains obsolete " & obsoleteName & ". Recreate it using schema v2.")
+                            End If
+                        Next
+
+                        Dim mode As Integer = CInt(appKey.GetValue("RemoteAppToolSessionMode", -1))
+                        If mode <> 1 AndAlso mode <> 2 Then
+                            Throw New InvalidOperationException("RemoteApp " & aliasName & " has no valid session mode. Recreate it using schema v2.")
+                        End If
+
                         Dim schemaVersion As Integer = CInt(appKey.GetValue("RemoteAppToolSchemaVersion", 0))
-                        If schemaVersion <> 1 Then
+                        If schemaVersion <> 2 Then
                             Throw New InvalidOperationException("Strict App Session configuration for alias " & aliasName & " uses unsupported schema version " & schemaVersion.ToString())
                         End If
 
@@ -62,25 +76,17 @@ Friend NotInheritable Class StrictAppConfig
                         resolved.StartupGraceMs = ReadNonNegative(appKey, "RemoteAppToolStartupGraceMs", 10000)
                         resolved.CloseGraceMs = ReadNonNegative(appKey, "RemoteAppToolCloseGraceMs", 1500)
                         resolved.PollIntervalMs = 250
-                        resolved.TerminationMode = CInt(appKey.GetValue("RemoteAppToolTerminationMode", 0))
+                        resolved.PersistentSession = mode = 2
                         resolved.ConfigurationSource = "registry:" & aliasName
 
-                        Dim disconnectBehavior As Integer = CInt(appKey.GetValue("RemoteAppToolDisconnectBehavior", 1))
-                        Select Case disconnectBehavior
-                            Case 0
-                                resolved.DisconnectGraceMs = -1
-                            Case 2
-                                resolved.DisconnectGraceMs = 0
-                            Case Else
-                                resolved.DisconnectGraceMs = ReadNonNegative(appKey, "RemoteAppToolDisconnectGraceMs", 30000)
-                        End Select
+                        ApplyMode(mode, resolved, ReadNonNegative(appKey, "RemoteAppToolDisconnectGraceMs", 30000))
 
                         For argumentIndex As Integer = 1 To args.Length - 1
                             resolved.TargetArguments.Add(args(argumentIndex))
                         Next
 
                         options = resolved
-                        StrictSessionLog.Write("StrictConfigLoaded alias=" & aliasName & " id=" & strictId.ToString("D"))
+                        StrictSessionLog.Write("StrictConfigLoaded alias=" & aliasName & " id=" & strictId.ToString("D") & " mode=" & mode.ToString())
                         Return True
                     End Using
                 Next
@@ -89,6 +95,23 @@ Friend NotInheritable Class StrictAppConfig
 
         Throw New InvalidOperationException("No Strict App Session registry entry matches deployment id " & strictId.ToString("D"))
     End Function
+
+    Friend Shared Sub ApplyMode(ByVal mode As Integer, ByVal options As SessionHostOptions, ByVal strictDisconnectGraceMs As Integer)
+        Select Case mode
+            Case 1
+                ' Strict: close the last tracked window, then log off this session.
+                options.PersistentSession = False
+                options.TerminationMode = 0
+                options.DisconnectGraceMs = strictDisconnectGraceMs
+            Case 2
+                ' Persistent: track the process tree; do not log off on disconnect.
+                options.PersistentSession = True
+                options.TerminationMode = 1
+                options.DisconnectGraceMs = -1
+            Case Else
+                Throw New ArgumentOutOfRangeException("mode")
+        End Select
+    End Sub
 
     Private Shared Function PathsEqual(ByVal firstPath As String, ByVal secondPath As String) As Boolean
         Try

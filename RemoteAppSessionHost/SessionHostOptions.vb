@@ -9,6 +9,7 @@ Friend NotInheritable Class SessionHostOptions
     Public Property DisconnectGraceMs As Integer
     Public Property PollIntervalMs As Integer
     Public Property NoLogoff As Boolean
+    Public Property PersistentSession As Boolean
     Public Property TerminationMode As Integer
     Public Property ConfigurationSource As String
 
@@ -54,6 +55,8 @@ Friend NotInheritable Class SessionHostOptions
                     options.PollIntervalMs = ParseInteger(RequireValue(args, index, current), current)
                 Case "--no-logoff"
                     options.NoLogoff = True
+                Case "--persistent"
+                    options.PersistentSession = True
                 Case "--"
                     index += 1
                     While index < args.Length
@@ -77,6 +80,11 @@ Friend NotInheritable Class SessionHostOptions
         If options.DisconnectGraceMs < -1 Then Throw New ArgumentException("--disconnect-grace-ms must be >= -1")
         If options.PollIntervalMs < 50 OrElse options.PollIntervalMs > 5000 Then
             Throw New ArgumentException("--poll-ms must be between 50 and 5000")
+        End If
+
+        If options.PersistentSession Then
+            options.TerminationMode = 1
+            options.DisconnectGraceMs = -1
         End If
 
         Return options

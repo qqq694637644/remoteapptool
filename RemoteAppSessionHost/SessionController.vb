@@ -56,7 +56,7 @@ Friend NotInheritable Class SessionController
             If target Is Nothing Then
                 StrictSessionLog.Write("TargetStartFailed no process returned")
                 HostErrorDisplay.Show("The published application could not be started. Check the Strict App Session lifecycle log for details.")
-                If safeToLogoff Then Return RequestLogoff(options, sessionId, safeToLogoff, "target-start-failed")
+                If safeToLogoff OrElse options.PersistentSession Then Return FinishLifecycle(options, sessionId, safeToLogoff, "target-start-failed")
                 Return 10
             End If
 
@@ -163,19 +163,23 @@ Friend NotInheritable Class SessionController
             Dim visibleWindowCount As Integer = WindowTracker.CountVisibleWindows(activeProcessIds)
 
             If HandleDisconnect(options, sessionId, nowUtc, disconnectStartedAt, lastConnectState, connectStateErrorLogged) Then
-                Return RequestLogoff(options, sessionId, safeToLogoff, "disconnect-grace-elapsed")
+                Return FinishLifecycle(options, sessionId, safeToLogoff, "disconnect-grace-elapsed")
             End If
 
             If options.TerminationMode = 1 Then
                 If activeProcessIds.Count = 0 Then
-                    Return RequestLogoff(options, sessionId, safeToLogoff, "process-tree-exited")
+                    If options.PersistentSession AndAlso (nowUtc - startedAt).TotalMilliseconds < options.StartupGraceMs Then
+                        Thread.Sleep(options.PollIntervalMs)
+                        Continue While
+                    End If
+                    Return FinishLifecycle(options, sessionId, safeToLogoff, "process-tree-exited")
                 End If
 
                 Thread.Sleep(options.PollIntervalMs)
                 Continue While
             ElseIf options.TerminationMode = 2 Then
                 If Not activeProcessIds.Contains(rootProcessId) Then
-                    Return RequestLogoff(options, sessionId, safeToLogoff, "primary-process-exited")
+                    Return FinishLifecycle(options, sessionId, safeToLogoff, "primary-process-exited")
                 End If
 
                 Thread.Sleep(options.PollIntervalMs)
@@ -200,11 +204,11 @@ Friend NotInheritable Class SessionController
                     closeStartedAt = nowUtc
                     StrictSessionLog.Write("CloseGraceStarted activeProcesses=" & activeProcessIds.Count.ToString())
                 ElseIf (nowUtc - closeStartedAt.Value).TotalMilliseconds >= options.CloseGraceMs Then
-                    Return RequestLogoff(options, sessionId, safeToLogoff, "last-tracked-window-closed")
+                    Return FinishLifecycle(options, sessionId, safeToLogoff, "last-tracked-window-closed")
                 End If
             Else
                 If activeProcessIds.Count = 0 Then
-                    Return RequestLogoff(options, sessionId, safeToLogoff, "process-tree-exited-before-window")
+                    Return FinishLifecycle(options, sessionId, safeToLogoff, "process-tree-exited-before-window")
                 End If
 
                 If Not processTreeFallback AndAlso (nowUtc - startedAt).TotalMilliseconds >= options.StartupGraceMs Then
@@ -214,7 +218,7 @@ Friend NotInheritable Class SessionController
             End If
 
             If processTreeFallback AndAlso activeProcessIds.Count = 0 Then
-                Return RequestLogoff(options, sessionId, safeToLogoff, "process-tree-exited")
+                Return FinishLifecycle(options, sessionId, safeToLogoff, "process-tree-exited")
             End If
 
             Thread.Sleep(options.PollIntervalMs)
@@ -264,6 +268,20 @@ Friend NotInheritable Class SessionController
         End If
 
         Return False
+    End Function
+
+    Private Shared Function FinishLifecycle(
+        ByVal options As SessionHostOptions,
+        ByVal sessionId As Integer,
+        ByVal safeToLogoff As Boolean,
+        ByVal reason As String) As Integer
+
+        If options.PersistentSession Then
+            StrictSessionLog.Write("PersistentSessionHostExit reason=" & reason & "; session left intact")
+            Return 0
+        End If
+
+        Return RequestLogoff(options, sessionId, safeToLogoff, reason)
     End Function
 
     Private Shared Function RequestLogoff(
